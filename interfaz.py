@@ -201,8 +201,30 @@ def pedir_texto(mensaje, obligatorio=True):
         mostrar_error("Este campo no puede quedar vacío.")
 
 
-def pedir_entero(mensaje, minimo=0, opcional=False):
-    """Pide un número entero mayor o igual a 'minimo'."""
+def pedir_opcion(opciones, mensaje="Elija una opción: ", por_defecto=None):
+    """Pide elegir una de las opciones de un menú y repite hasta que la respuesta sea válida.
+    'opciones' es la misma lista de tuplas (número, texto) que se le pasa a mostrar_opciones.
+    Si se indica 'por_defecto', apretar Enter sin escribir nada elige esa opción."""
+    # Armamos la lista de números válidos, por ejemplo ["1", "2", "3", "0"]
+    validas = []
+    for numero, texto in opciones:
+        validas.append(numero)
+    # Texto para el mensaje de error, por ejemplo "1, 2, 3 o 0"
+    texto_validas = ", ".join(validas[:-1]) + " o " + validas[-1]
+
+    print()
+    while True:
+        opcion = input(mensaje).strip()
+        if opcion == "" and por_defecto is not None:
+            return por_defecto
+        if opcion in validas:
+            return opcion
+        # La opción no es válida: avisamos y el while vuelve a preguntar, sin salir del menú
+        mostrar_error(f"Opción no válida, elija {texto_validas}.")
+
+
+def pedir_entero(mensaje, minimo=0, opcional=False, maximo=VALOR_MAXIMO):
+    """Pide un número entero entre 'minimo' y 'maximo'."""
     while True:
         texto = input(mensaje).strip()
         if texto == "" and opcional:
@@ -214,8 +236,8 @@ def pedir_entero(mensaje, minimo=0, opcional=False):
             continue  # vuelve al inicio del while y pregunta de nuevo
         if numero < minimo:
             mostrar_error(f"El número debe ser mayor o igual a {minimo}.")
-        elif numero > VALOR_MAXIMO:
-            mostrar_error(f"El número no puede ser mayor a {VALOR_MAXIMO}.")
+        elif numero > maximo:
+            mostrar_error(f"El número no puede ser mayor a {maximo}.")
         else:
             return numero
 

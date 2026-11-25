@@ -28,7 +28,7 @@ import interfaz
 
 def elegir_producto():
     """Muestra los productos, pide un ID y devuelve ese producto.
-    Devuelve None si no hay productos, si se cancela o si el ID no existe."""
+    Si el ID no existe lo vuelve a pedir. Devuelve None si no hay productos o si se cancela."""
     productos = base_datos.obtener_productos()
     if len(productos) == 0:
         interfaz.mostrar_aviso("No hay productos registrados.")
@@ -36,15 +36,18 @@ def elegir_producto():
 
     # Mostramos la tabla para que el usuario vea qué ID tiene cada producto
     interfaz.mostrar_tabla(productos)
-    id_producto = interfaz.pedir_entero("\nIngrese el ID del producto (0 para cancelar): ", minimo=0)
-    if id_producto == 0:
-        interfaz.mostrar_aviso("Operación cancelada.")
-        return None
+    print()
+    while True:
+        id_producto = interfaz.pedir_entero("Ingrese el ID del producto (0 para cancelar): ", minimo=0)
+        if id_producto == 0:
+            interfaz.mostrar_aviso("Operación cancelada.")
+            return None
 
-    producto = base_datos.obtener_producto_por_id(id_producto)
-    if producto is None:
+        producto = base_datos.obtener_producto_por_id(id_producto)
+        if producto is not None:
+            return producto
+        # El ID no existe: avisamos y el while vuelve a preguntar
         interfaz.mostrar_error(f"No existe ningún producto con el ID {id_producto}.")
-    return producto
 
 
 def confirmar_si_nombre_repetido(nombre, id_excluido=0):
@@ -122,14 +125,18 @@ def ver_productos():
         return  # return sin valor: termina la función acá
 
     print("Ordenar por:")
-    interfaz.mostrar_opciones([
+    opciones = [
         ("1", "ID (orden de carga)"),
         ("2", "Nombre (A-Z)"),
         ("3", "Categoría (A-Z)"),
         ("4", "Cantidad (de menor a mayor)"),
         ("5", "Precio (de menor a mayor)"),
         ("6", "Precio (de mayor a menor)"),
-    ])
+    ]
+    interfaz.mostrar_opciones(opciones)
+    # Con Enter (sin escribir nada) se ordena por ID
+    opcion = interfaz.pedir_opcion(opciones, "Elija una opción (Enter = por ID): ", por_defecto="1")
+
     # Cada opción del menú corresponde a una clave del diccionario base_datos.ORDENES
     ordenes = {
         "1": "id",
@@ -139,13 +146,6 @@ def ver_productos():
         "5": "precio_asc",
         "6": "precio_desc",
     }
-    opcion = input("\nElija una opción (Enter = por ID): ").strip()
-    while opcion != "" and opcion not in ordenes:
-        interfaz.mostrar_error("Opción no válida, elija un número del 1 al 6.")
-        opcion = input("Elija una opción (Enter = por ID): ").strip()
-    if opcion == "":
-        opcion = "1"
-
     productos = base_datos.obtener_productos(ordenes[opcion])
     interfaz.mostrar_tabla(productos)
 
@@ -237,13 +237,15 @@ def eliminar_producto():
 def buscar_productos():
     """Opción 5: submenú para buscar por ID, por nombre o por categoría."""
     interfaz.mostrar_titulo("BUSCAR PRODUCTOS")
-    interfaz.mostrar_opciones([
+    opciones = [
         ("1", "Buscar por ID"),
         ("2", "Buscar por nombre"),
         ("3", "Buscar por categoría"),
         ("0", "Volver al menú principal"),
-    ])
-    opcion = input("\nElija una opción: ").strip()
+    ]
+    interfaz.mostrar_opciones(opciones)
+    # pedir_opcion repregunta hasta que la opción sea válida, así no hace falta un "case _"
+    opcion = interfaz.pedir_opcion(opciones)
 
     match opcion:
         case "1":
@@ -273,9 +275,6 @@ def buscar_productos():
         case "0":
             return
 
-        case _:
-            interfaz.mostrar_error("Opción no válida.")
-
 
 def reporte_stock_bajo():
     """Opción 6: lista los productos con cantidad igual o menor a un límite dado por el usuario."""
@@ -300,35 +299,33 @@ def movimiento_stock():
 
     stock_actual = producto["cantidad"]
     print(f"\nProducto: {producto['nombre']} | Stock actual: {stock_actual} unidad(es)")
-    interfaz.mostrar_opciones([
-        ("1", "Entrada (sumar unidades, por ejemplo una compra al proveedor)"),
-        ("2", "Salida (restar unidades, por ejemplo una venta)"),
-        ("0", "Cancelar"),
-    ])
-    opcion = input("\nElija una opción: ").strip()
+
+    opciones = [("1", "Entrada (sumar unidades, por ejemplo una compra al proveedor)")]
+    # Si no hay stock no se puede registrar una salida, así que esa opción no se ofrece
+    if stock_actual > 0:
+        opciones.append(("2", "Salida (restar unidades, por ejemplo una venta)"))
+    else:
+        interfaz.mostrar_aviso("El producto no tiene stock: solo se pueden registrar entradas.")
+    opciones.append(("0", "Cancelar"))
+    interfaz.mostrar_opciones(opciones)
+    opcion = interfaz.pedir_opcion(opciones)
 
     # diferencia es lo que se suma al stock: positiva en una entrada, negativa en una salida
     match opcion:
         case "1":
-            unidades = interfaz.pedir_entero("Unidades que ingresan: ", minimo=1)
-            if stock_actual + unidades > interfaz.VALOR_MAXIMO:
-                interfaz.mostrar_error(f"El stock no puede superar {interfaz.VALOR_MAXIMO} unidades.")
-                return
+            # El máximo evita que el stock total supere el valor máximo permitido
+            unidades = interfaz.pedir_entero(
+                "Unidades que ingresan: ", minimo=1, maximo=interfaz.VALOR_MAXIMO - stock_actual
+            )
             diferencia = unidades
         case "2":
-            if stock_actual == 0:
-                interfaz.mostrar_aviso("El producto no tiene stock para descontar.")
-                return
-            unidades = interfaz.pedir_entero("Unidades que salen: ", minimo=1)
-            if unidades > stock_actual:
-                interfaz.mostrar_error(f"No hay stock suficiente: solo quedan {stock_actual} unidad(es).")
-                return
+            # No se pueden sacar más unidades de las que hay: si se intenta, se vuelve a preguntar
+            unidades = interfaz.pedir_entero(
+                f"Unidades que salen (máximo {stock_actual}): ", minimo=1, maximo=stock_actual
+            )
             diferencia = -unidades
         case "0":
             interfaz.mostrar_aviso("Operación cancelada.")
-            return
-        case _:
-            interfaz.mostrar_error("Opción no válida.")
             return
 
     if base_datos.modificar_stock(producto["id"], diferencia):
@@ -369,12 +366,13 @@ def resumen_inventario():
 def exportar_productos():
     """Opción 9: guarda el inventario completo o el reporte de bajo stock en un archivo CSV."""
     interfaz.mostrar_titulo("EXPORTAR A CSV")
-    interfaz.mostrar_opciones([
+    opciones = [
         ("1", "Inventario completo"),
         ("2", "Reporte de bajo stock"),
         ("0", "Volver al menú principal"),
-    ])
-    opcion = input("\nElija una opción: ").strip()
+    ]
+    interfaz.mostrar_opciones(opciones)
+    opcion = interfaz.pedir_opcion(opciones)
 
     match opcion:
         case "1":
@@ -385,9 +383,6 @@ def exportar_productos():
             productos = base_datos.obtener_stock_bajo(limite)
             nombre_archivo = f"bajo_stock_{limite}"
         case "0":
-            return
-        case _:
-            interfaz.mostrar_error("Opción no válida.")
             return
 
     if len(productos) == 0:
