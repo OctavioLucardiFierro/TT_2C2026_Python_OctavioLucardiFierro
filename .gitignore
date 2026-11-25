@@ -1,0 +1,9 @@
+# Archivos que genera Python al ejecutar
+__pycache__/
+*.pyc
+
+# Base de datos local: el programa la crea solo al ejecutarse
+inventario.db
+
+# Archivos CSV generados con la opción "Exportar a CSV"
+exportaciones/
